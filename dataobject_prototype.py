@@ -3,6 +3,7 @@ import os
 
 import numpy as np
 import pandas as pd
+import kglab
 
 from tsl import logger
 
@@ -55,8 +56,9 @@ class CrimeMexicoCityTTL(DatetimeDataset):
     @property
     def raw_file_names(self):
         return [
-            'metr_la.h5', 'distances_la.csv', 'sensor_locations_la.csv',
-            'sensor_ids_la.txt'
+#             'metr_la.h5', 'distances_la.csv', 'sensor_locations_la.csv',
+#             'sensor_ids_la.txt'
+            'testind3.ttl'
         ]
 
     # Decoradores para indicar que la clase debe de contar con tales archivos
@@ -75,7 +77,7 @@ class CrimeMexicoCityTTL(DatetimeDataset):
     # Este metodo lo podemos dejar asi con el fin de mantener la consistencia con la clase heredada
     # Segun la doc, esto es lo que debe de hacer:
     # Eventually build the dataset from raw data to self.root_dir folder.
-    def build(self) -> None:
+    def build(self, aggregation_level="alcaldia") -> None:
         self.maybe_download()
         # Build distance matrix
         logger.info('Building distance matrix...')
@@ -102,19 +104,99 @@ class CrimeMexicoCityTTL(DatetimeDataset):
     def load_raw(self):
         # Considero que aqui se va a tener que cargar el TTL y hacer
         # la consulta SPARQL para luego cargarlo a este objeto.
-        self.maybe_build()
-        # load traffic data
-        traffic_path = os.path.join(self.root_dir, 'metr_la.h5')
-        df = pd.read_hdf(traffic_path)
-        # add missing values
-        datetime_idx = sorted(df.index)
-        date_range = pd.date_range(datetime_idx[0],
-                                   datetime_idx[-1],
-                                   freq='5T')
-        df = df.reindex(index=date_range)
-        # load distance matrix
-        path = os.path.join(self.root_dir, 'metr_la_dist.npy')
-        dist = np.load(path)
+#         self.maybe_build()
+#         # load traffic data
+#         traffic_path = os.path.join(self.root_dir, 'metr_la.h5')
+#         df = pd.read_hdf(traffic_path)
+#         # add missing values
+#         datetime_idx = sorted(df.index)
+#         date_range = pd.date_range(datetime_idx[0],
+#                                    datetime_idx[-1],
+#                                    freq='5T')
+#         df = df.reindex(index=date_range)
+#         # load distance matrix
+#         path = os.path.join(self.root_dir, 'metr_la_dist.npy')
+#         dist = np.load(path)
+        NAMESPACES = {
+            "wtm":  "http://purl.org/heals/food/",
+            "ind":  "http://purl.org/heals/ingredient/",
+            "recipe":  "https://www.food.com/recipe/",
+
+            "crime": "http://localhost/ontology2#",
+            "cube": "http://purl.org/linked-data/cube#",
+            "geo": "http://www.w3.org/2003/01/geo/wgs84_pos#",
+            "ontology": "http://dbpedia.org/ontology/",
+            "owl": "http://www.w3.org/2002/07/owl#",
+            "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+            "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+            "xsd": "http://www.w3.org/2001/XMLSchema#"
+        }
+
+        kg = kglab.KnowledgeGraph(namespaces = NAMESPACES)
+        _ = kg.load_rdf("testind3.ttl")
+
+        # Buscamos tener id, delito, atributos, coordenadas y fecha en el DF
+        # A clasificar: crime:tieneCategoria
+        # Atributo: crime:contiene, crime:edad, crime:genero
+        sparql_contiene = """
+            SELECT distinct *
+            WHERE {
+                ?uri a crime:obs .
+                ?uri a ?type .   
+                ?uri crime:tieneFecha ?date .
+                ?uri geo:lat ?lat .
+                ?uri geo:long ?long .
+
+                ?uri crime:contiene ?atribute .
+            }
+        """
+        sparql_edad = """
+            SELECT distinct *
+            WHERE {
+                ?uri a crime:obs .
+                ?uri a ?type .   
+                ?uri crime:tieneFecha ?date .
+                ?uri geo:lat ?lat .
+                ?uri geo:long ?long .
+
+                ?uri crime:edad ?atribute .
+            }
+        """
+        sparql_genero = """
+            SELECT distinct *
+            WHERE {
+                ?uri a crime:obs .
+                ?uri a ?type .   
+                ?uri crime:tieneFecha ?date .
+                ?uri geo:lat ?lat .
+                ?uri geo:long ?long .
+
+                ?uri crime:genero ?atribute
+            }
+        """
+
+        df_contiene = kg.query_as_df(sparql=sparql_contiene)
+        df_edad = kg.query_as_df(sparql=sparql_edad)
+        df_genero = kg.query_as_df(sparql=sparql_genero)
+
+        df_atributes = pd.concat([df_contiene, df_edad, df_genero], ignore_index=True)
+        df_atributes = df_atributes.groupby(['uri', 'date', 'type', 'long', 'lat'])['atribute'].apply(list).reset_index(name='atribute')
+        # df_atributes
+        
+        # Luego obtengamos el uri, delito a clasificar
+        sparql_crimes = """
+            SELECT distinct *
+            WHERE {
+                ?uri crime:tieneCategoria ?crime .
+            }
+        """
+        df_crimes = kg.query_as_df(sparql=sparql_crimes)
+        # Join by uri
+        df = pd.merge(df_atributes, df_crimes, how="inner", on="uri")
+        
+        # Encuentra su respectiva alcaldia y las respectivas coordenadas a evaluar
+        if aggregation_level == "alcaldia":
+            
         return df, dist
 
     def load(self, impute_zeros=True):
