@@ -208,6 +208,12 @@ class CrimeMexicoCityTTL(DatetimeDataset):
             df = df.replace(to_replace=0., method='ffill')
         return df, dist, mask
 
+    # TODO:
+    # UNA VEZ QUE PANCHO ME HAYA PASADO LOS DATAFRAMES
+    # - CARGARLO A ESTE CODIGO
+    # - ARMONIZAR EL FORMATO DE LAS TABLAS
+    # - CALCULAR LA SIMILITUD DE LOS NODOS MEDIANTE DIFERENTES METODOS (GAUSSIAN KERNEL)
+    
     def compute_similarity(self, method: str, **kwargs):
         # De acuerdo con el atributo similarity_options declarado al inicio de la clase,
         # se debera implementar el tantos metodos como se tengan definidos en tal atributo
@@ -219,3 +225,7 @@ class CrimeMexicoCityTTL(DatetimeDataset):
             finite_dist = finite_dist[~np.isinf(finite_dist)]
             sigma = finite_dist.std()
             return gaussian_kernel(self.dist, sigma)
+        elif method == "ageb":
+            return none
+        elif method == "alcaldia":
+            return none
