@@ -101,6 +101,54 @@ class CrimeMexicoCityTTL(DatetimeDataset):
         # Remove raw data
         self.clean_downloads()
 
+    ### esta version da el conteo por alcaldia
+
+    def contained_1(geo_df, dfpoints):
+        """
+            Esta funcion regresara una lista de tamanio len(geo_df)
+            donde cada elemento indicara a que alcaldia pertenece
+            con una correspondencia 1:1 a cada punto (denuncia) disponible en
+            el dataframe.
+        """
+        #usamos la funcion within de shapely, para ver si el punto esta dentro de la alcaldia
+        #dfpoints serian las coordenadas de las denuncias
+        geo_df['sum']=''
+        for i in range(0, len(geo_df)):
+            polygon=geo_df.geometry.iloc[i]
+            sum=0
+            for j in range(0, len(dfpoints)):
+                cont=Point(dfpoints.latitud.iloc[j],dfpoints.longitud.iloc[j]).within(polygon)
+                if cont==True:
+                sum+=1
+            geo_df['sum'].iloc[i]=sum
+        return geo_df
+        ### Siento que es medio lento, ya lo he hecho varias veces pero con contains, y creo que tarda mas, ahorita con estos 20 putnos tarda menos. y funciona igual
+
+    # En esencia los argumentos de esta function/metodo no deberian ded existir
+    # puesto que ambos elementos deberán ser atributos del objeto previamente
+    # declarados.
+    def contained_2(geo_df, points_series):
+        # Se obtienen los indices/nombre de las alcaldias a la que pertenecen cada punto
+        # el conteo puede llevarse a cabo despues con un built-in method "group-by"
+        list_belonging = list(map(geo_df['geometry'].contains, points_series))
+        index_geom = [geo_df[x].index[0] for x in list_belonging]
+        name_geo = [geo_df[x]['nomgeo'].item() for x in list_belonging]
+        return index_geom, name_geo
+
+    #### La matriz de sitancias entre denuncias y denuncias denuncias las podemos calcular asi
+    def distance_matrix_crimes(df):
+        #cambiamos la proyección para distancias en metros
+        df = gpd.GeoDataFrame(
+            df, geometry = gpd.points_from_xy(df.lat, df.long),
+            crs="EPSG:4326"
+        )
+        df = df.set_crs('EPSG:4326').to_crs('EPSG:3857')
+        mat = df.geometry.apply(lambda g: df.distance(g))    
+        
+        # Con esta funcion obtenemos la distancia de cada denuncia con respecto de cada centroide
+        return mat
+
+
     def load_raw(self):
         # Considero que aqui se va a tener que cargar el TTL y hacer
         # la consulta SPARQL para luego cargarlo a este objeto.
@@ -194,9 +242,16 @@ class CrimeMexicoCityTTL(DatetimeDataset):
         # Join by uri
         df = pd.merge(df_atributes, df_crimes, how="inner", on="uri")
         
-        # Encuentra su respectiva alcaldia y las respectivas coordenadas a evaluar
-        if aggregation_level == "alcaldia":
-            
+        # # Encuentra su respectiva alcaldia y las respectivas coordenadas a evaluar
+        # if aggregation_level == "alcaldia":
+        # Se invoca la funcion y se le agrega la columnas al dataframe
+        index_geom, name_geo = contained_2(geo_df, denuncias_df["geometry"])
+        denuncias_df["index_alcaldia"] = index_geom
+        denuncias_df["nombre_alcaldia"] = name_geo
+
+        # Con esta funcion obtenemos la distancia de cada denuncia con respecto a cada denuncia
+        dist = distance_matrix_crimes(denuncias_df)
+
         return df, dist
 
     def load(self, impute_zeros=True):
