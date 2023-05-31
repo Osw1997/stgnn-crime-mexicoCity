@@ -143,10 +143,15 @@ class CrimeMexicoCityTTL(DatetimeDataset):
             crs="EPSG:4326"
         )
         df = df.set_crs('EPSG:4326').to_crs('EPSG:3857')
-        mat = df.geometry.apply(lambda g: df.distance(g))    
+        dist = df.geometry.apply(lambda g: df.distance(g))
         
-        # Con esta funcion obtenemos la distancia de cada denuncia con respecto de cada centroide
-        return mat
+        # # Con esta funcion obtenemos la distancia de cada denuncia con respecto de cada centroide
+        # return mat
+        
+        # Save to built directory (Update in the class definition)
+        # path = os.path.join(self.root_dir, 'metr_la_dist.npy')
+        path = "crime_cdmx_dist.npy"
+        np.save(path, dist)
 
 
     def load_raw(self):
@@ -249,8 +254,12 @@ class CrimeMexicoCityTTL(DatetimeDataset):
         denuncias_df["index_alcaldia"] = index_geom
         denuncias_df["nombre_alcaldia"] = name_geo
 
-        # Con esta funcion obtenemos la distancia de cada denuncia con respecto a cada denuncia
-        dist = distance_matrix_crimes(denuncias_df)
+        # # Con esta funcion obtenemos la distancia de cada denuncia con respecto a cada denuncia
+        # dist = distance_matrix_crimes(denuncias_df)
+
+        # Carga la matriz de distancias desde el archivo .npy
+        path = os.path.join(self.root_dir, 'crime_cdmx_dist.npy')
+        dist = np.load(path)
 
         return df, dist
 
@@ -265,9 +274,15 @@ class CrimeMexicoCityTTL(DatetimeDataset):
 
     # TODO:
     # UNA VEZ QUE PANCHO ME HAYA PASADO LOS DATAFRAMES
-    # - CARGARLO A ESTE CODIGO
-    # - ARMONIZAR EL FORMATO DE LAS TABLAS
-    # - CALCULAR LA SIMILITUD DE LOS NODOS MEDIANTE DIFERENTES METODOS (GAUSSIAN KERNEL)
+    # - CARGARLO A ESTE CODIGO [OK]
+    # - ARMONIZAR EL FORMATO DE LAS TABLAS [OK]
+    # - CALCULAR LA SIMILITUD DE LOS NODOS MEDIANTE DIFERENTES METODOS (GAUSSIAN KERNEL) [OK]
+    
+    # - ES CORRECTA LA IMPLEMENTACION PARA SIMILITUD A NIVEL DE AGEB Y ALCALDIA? COMO RELACIONARLOS?
+    # - IMPLEMENTAR METODO DE SIMILITUD PARA NIVEL alcaldia [TODO]
+
+    # - Crear VM con todas las bibliotecas necesarias[TODO]
+
     
     def compute_similarity(self, method: str, **kwargs):
         # De acuerdo con el atributo similarity_options declarado al inicio de la clase,
