@@ -58,7 +58,7 @@ class CrimeMexicoCityTTL(DatetimeDataset):
         return [
 #             'metr_la.h5', 'distances_la.csv', 'sensor_locations_la.csv',
 #             'sensor_ids_la.txt'
-            'testind3.ttl'
+            'raw_files_to_remove/testind3.ttl'
         ]
 
     # Decoradores para indicar que la clase debe de contar con tales archivos
@@ -186,7 +186,7 @@ class CrimeMexicoCityTTL(DatetimeDataset):
         }
 
         kg = kglab.KnowledgeGraph(namespaces = NAMESPACES)
-        _ = kg.load_rdf("testind3.ttl")
+        _ = kg.load_rdf("raw_files_to_remove/testind3.ttl")
 
         # Buscamos tener id, delito, atributos, coordenadas y fecha en el DF
         # A clasificar: crime:tieneCategoria
